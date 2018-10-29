@@ -10,6 +10,7 @@ setup(
     license='MIT',
     long_description=open('README.md').read(),
     packages=find_packages(),
+    data_files=[('keithleygui', ['LICENSE.md'])],
     package_data={
         'keithleygui': ['*.ui', '*.mplstyle'],
     },

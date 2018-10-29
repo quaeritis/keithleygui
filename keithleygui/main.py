@@ -25,6 +25,7 @@ from keithleygui.config.main import CONF
 
 
 MAIN_UI_PATH = pkgr.resource_filename('keithleygui', 'main.ui')
+ABOUT_UI_PATH = pkgr.resource_filename('keithleygui', 'about_dialog.ui')
 MPL_STYLE_PATH = pkgr.resource_filename('keithleygui', 'figure_style.mplstyle')
 ADDRESS_UI_PATH = pkgr.resource_filename('keithleygui', 'address_dialog.ui')
 
@@ -63,6 +64,8 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
 
         # create address dialog
         self.addressDialog = KeithleyAddressDialog(self.keithley)
+        # create about dialog
+        self.aboutDialog = AboutDialog()
 
         # connection update timer: check periodically if keithley is connected
         # and busy, act accordingly
@@ -205,6 +208,7 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
         self.comboBoxDrainSMU.currentIndexChanged.connect(self._on_smu_drain_changed)
 
         self.actionSettings.triggered.connect(self._on_settings_clicked)
+        self.actionAbout.triggered.connect(self._on_about_clicked)
         self.actionConnect.triggered.connect(self._on_connect_clicked)
         self.actionDisconnect.triggered.connect(self._on_disconnect_clicked)
         self.action_Exit.triggered.connect(self.exit_)
@@ -379,6 +383,10 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
     @QtCore.Slot()
     def _on_settings_clicked(self):
         self.addressDialog.show()
+
+    @QtCore.Slot()
+    def _on_about_clicked(self):
+        self.aboutDialog.show()
 
     @QtCore.Slot()
     def _on_save_clicked(self):
@@ -649,6 +657,40 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
             self.ax.set_ylabel('Current [A]')
             self.canvas.draw()
 
+class AboutDialog(QtWidgets.QDialog):
+    
+    def __init__(self):
+        super(self.__class__, self).__init__()
+        # load user interface layout from .ui file
+        uic.loadUi(ABOUT_UI_PATH, self)
+        version = pkgr.require("keithleygui")[0].version
+        self.version.setText(version)
+        self.title.setText("<html><head/><body><p><span style=\" font-size:26pt; color:#353535;\"> "
+                           + "keithleygui" + " </span></p></body></html>")
+        self.MainBlabla.setText("<html><head/><body>" +
+                                """<p>keithleygui is a free and open source.
+                                The source code can be found <a href=\"https://github.com/OE-FET/keithleygui"><span style=\"
+                                text-decoration: underline; color:#0057ae;\">here</span></a>""" +
+                                "</p></body> </html>")
+
+        LICENCE_TXT = pkgr.resource_string('keithleygui', 'LICENSE.md')
+
+        self.authorsPage.setText("test autor")
+        self.licensePage.setText(str(LICENCE_TXT))
+        self.creditPage.setText("test contribute")
+
+        self.pushButtonAuthors.clicked.connect(self.showAuthors)
+        self.pushButtonLicense.clicked.connect(self.showLicense)
+        self.pushButtonContributors.clicked.connect(self.showContributors)
+
+    def showAuthors(self):
+        self.stackedWidget.setCurrentWidget(self.authorsPage)
+
+    def showLicense(self):
+        self.stackedWidget.setCurrentWidget(self.licensePage)
+
+    def showContributors(self):
+        self.stackedWidget.setCurrentWidget(self.creditPage)
 
 class KeithleyAddressDialog(QtWidgets.QDialog):
     """
