@@ -1,10 +1,9 @@
-#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Feb 20 15:01:18 2018
+#
+# Copyright © keithleygui Project Contributors
+# Licensed under the terms of the MIT License
+# (see LICENSE.txt for details)
 
-@author: SamSchott
-"""
 
 # system imports
 from __future__ import division, print_function, absolute_import
@@ -15,8 +14,8 @@ from qtpy import QtGui, QtCore, QtWidgets, uic
 from matplotlib.figure import Figure
 from keithley2600 import TransistorSweepData, IVSweepData
 import matplotlib as mpl
-from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg
-                                                as FigureCanvas)
+import numpy as np
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
 # local imports
 from keithleygui.utils.led_indicator_widget import LedIndicator
@@ -108,9 +107,8 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
 
         # This needs to be done programatically: it is impossible to specify
         # different labelcolors and tickcolors in a .mplstyle file
-        self.ax.tick_params(axis='both', which='major', direction='out',
-                            labelcolor='black', color=[0.5, 0.5, 0.5, 1],
-                            labelsize=9)
+        self.ax.tick_params(axis='both', which='major', direction='out', labelcolor='black',
+                            color=[0.5, 0.5, 0.5, 1], labelsize=9)
 
         self.canvas = FigureCanvas(self.fig)
 
@@ -298,13 +296,9 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
             params['VStart'] = self.scienDSpinBoxVStart.value()
             params['VStop'] = self.scienDSpinBoxVStop.value()
             params['VStep'] = self.scienDSpinBoxVStep.value()
-            params['VFix'] = 0
 
             smusweep = self.comboBoxSweepSMU.currentText()
-            other = [s for s in self.smu_list if s != smusweep]
-
             params['smu_sweep'] = getattr(self.keithley, smusweep)
-            params['smu_fix'] = getattr(self.keithley, other[0])
 
         # get aquisition settings
         params['tInt'] = self.scienDSpinBoxInt.value()  # integration time
@@ -394,8 +388,7 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
         prompt = 'Save as .txt file.'
         filename = 'untitled.txt'
         formats = 'Text file (*.txt)'
-        filepath = QtWidgets.QFileDialog.getSaveFileName(self, prompt,
-                                                         filename, formats)
+        filepath = QtWidgets.QFileDialog.getSaveFileName(self, prompt, filename, formats)
         if len(filepath[0]) < 4:
             return
         self.sweepData.save(filepath[0])
@@ -614,12 +607,10 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
 
         if self.sweepData.sweepType == 'transfer':
             for v in self.sweepData.step_list():
-                self.ax.semilogy(self.sweepData.vSweep[v],
-                                 abs(self.sweepData.iDrain[v]),
-                                 '-', label='Drain current, Vd = %s' % v)
-                self.ax.semilogy(self.sweepData.vSweep[v],
-                                 abs(self.sweepData.iGate[v]),
-                                 '--', label='Gate current, Vd = %s' % v)
+                self.ax.semilogy(self.sweepData.vSweep[v], abs(self.sweepData.iDrain[v]), '-',
+                                 label='Drain current, Vd = %s' % v)
+                self.ax.semilogy(self.sweepData.vSweep[v], abs(self.sweepData.iGate[v]), '--',
+                                 label='Gate current, Vd = %s' % v)
                 self.ax.legend(loc=3)
 
             self.ax.autoscale(axis='x', tight=True)
@@ -733,33 +724,28 @@ class MeasureThread(QtCore.QThread):
 
         if self.params['Measurement'] == 'transfer':
             sweepData = self.keithley.transferMeasurement(
-                    self.params['smu_gate'], self.params['smu_drain'],
-                    self.params['VgStart'], self.params['VgStop'],
-                    self.params['VgStep'], self.params['VdList'],
-                    self.params['tInt'], self.params['delay'],
-                    self.params['pulsed']
+                    self.params['smu_gate'], self.params['smu_drain'], self.params['VgStart'],
+                    self.params['VgStop'], self.params['VgStep'], self.params['VdList'],
+                    self.params['tInt'], self.params['delay'], self.params['pulsed']
                     )
         elif self.params['Measurement'] == 'output':
             sweepData = self.keithley.outputMeasurement(
-                    self.params['smu_gate'], self.params['smu_drain'],
-                    self.params['VdStart'], self.params['VdStop'],
-                    self.params['VdStep'], self.params['VgList'],
-                    self.params['tInt'], self.params['delay'],
-                    self.params['pulsed']
+                    self.params['smu_gate'], self.params['smu_drain'], self.params['VdStart'],
+                    self.params['VdStop'], self.params['VdStep'], self.params['VgList'],
+                    self.params['tInt'], self.params['delay'], self.params['pulsed']
                     )
 
         elif self.params['Measurement'] == 'iv':
-            Vsweep, Isweep, Vfix, Ifix = self.keithley.voltageSweep(
-                    self.params['smu_sweep'], self.params['smu_fix'],
-                    self.params['VStart'], self.params['VStop'],
-                    self.params['VStep'], self.params['VFix'],
-                    self.params['tInt'], self.params['delay'],
+            step = np.sign(self.params['VStop'] - self.params['VStart']) * abs(self.params['VStep'])
+            sweeplist = np.arange(self.params['VStart'], self.params['VStop'] + step, step)
+            vSweep, iSweep = self.keithley.voltageSweepSingleSMU(
+                    self.params['smu_sweep'], sweeplist, self.params['tInt'], self.params['delay'],
                     self.params['pulsed']
                     )
 
             self.keithley.reset()
 
-            sweepData = IVSweepData(Vsweep, Isweep)
+            sweepData = IVSweepData(vSweep, iSweep)
 
         self.finishedSig.emit(sweepData)
 
