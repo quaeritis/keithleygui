@@ -1,3 +1,4 @@
+
 from setuptools import setup, find_packages
 
 setup(
@@ -10,7 +11,7 @@ setup(
     license='MIT',
     long_description=open('README.md').read(),
     packages=find_packages(),
-    data_files=[('keithleygui', ['LICENSE.md'])],
+    data_files=[('', ['LICENSE.txt'])],
     package_data={
         'keithleygui': ['*.ui', '*.mplstyle'],
     },

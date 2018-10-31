@@ -55,6 +55,7 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
                 'QStatusBar::item {border: 0px solid black };')
 
         self.connect_ui_callbacks()  # connect to callbacks
+
         self._on_load_default()  # load default settings into GUI
         self.actionSaveSweepData.setEnabled(False)  # disable save menu
 
@@ -649,7 +650,7 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
             self.canvas.draw()
 
 class AboutDialog(QtWidgets.QDialog):
-    
+
     def __init__(self):
         super(self.__class__, self).__init__()
         # load user interface layout from .ui file
@@ -664,10 +665,9 @@ class AboutDialog(QtWidgets.QDialog):
                                 text-decoration: underline; color:#0057ae;\">here</span></a>""" +
                                 "</p></body> </html>")
 
-        LICENCE_TXT = pkgr.resource_string('keithleygui', 'LICENSE.md')
-
+        LICENCE_TXT = pkgr.resource_string(__name__, '../LICENSE.txt').decode('utf-8')
         self.authorsPage.setText("test autor")
-        self.licensePage.setText(str(LICENCE_TXT))
+        self.licensePage.setText(LICENCE_TXT)
         self.creditPage.setText("test contribute")
 
         self.pushButtonAuthors.clicked.connect(self.showAuthors)
