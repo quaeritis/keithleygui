@@ -1,4 +1,9 @@
+import platform
 from setuptools import setup, find_packages
+
+data_files = []
+if platform.system() in ['Linux', 'FreeBSD']:
+    data_files += [('share/applications', ['data/keithleygui.desktop'])]
 
 setup(
     name='keithleygui',
@@ -13,6 +18,7 @@ setup(
     package_data={
         'keithleygui': ['*.ui', '*.mplstyle'],
     },
+    data_files=data_files,
     entry_points={
         'console_scripts': [
             'keithleygui=keithleygui.main:run'

@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=keithleygui
+GenericName=keithleygui
+Comment=User interface for Keithley 2600 series instruments
+Icon=keithleygui
+TryExec=keithleygui
+Exec=keithleygui %F
+Terminal=false
+MimeType=text/x-python;
+Categories=Science;
+Keywords=Science;
+StartupNotify=true
