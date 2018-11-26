@@ -699,17 +699,32 @@ class MeasureThread(QtCore.QThread):
 def run():
 
     import sys
+    import argparse
     from keithley2600 import Keithley2600
 
-    KEITHLEY_ADDRESS = CONF.get('Connection', 'VISA_ADDRESS')
-    VISA_LIBRARY = CONF.get('Connection', 'VISA_LIBRARY')
-    keithley = Keithley2600(KEITHLEY_ADDRESS, VISA_LIBRARY)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-v", "--verbose", help="increase output verbosity",
+                        action="store_true")
+    args = parser.parse_args()
+    if args.verbose:
+        import logging
+        logger = logging.getLogger('keithley2600')
+        logger.addHandler(logging.StreamHandler())
+        logger.setLevel(logging.DEBUG)
 
-    app = QtWidgets.QApplication(sys.argv)
-    app.aboutToQuit.connect(app.deleteLater)
+    try:
+        KEITHLEY_ADDRESS = CONF.get('Connection', 'VISA_ADDRESS')
+        VISA_LIBRARY = CONF.get('Connection', 'VISA_LIBRARY')
+        keithley = Keithley2600(KEITHLEY_ADDRESS, VISA_LIBRARY)
 
-    keithleyGUI = KeithleyGuiApp(keithley)
-    keithleyGUI.show()
+        app = QtWidgets.QApplication(sys.argv)
+        app.aboutToQuit.connect(app.deleteLater)
+
+        keithleyGUI = KeithleyGuiApp(keithley)
+        keithleyGUI.show()
+    except:
+        keithley.reset()
+        print("Unexpected error:", sys.exc_info()[0])
 
     app.exec_()
 
