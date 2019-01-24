@@ -7,8 +7,12 @@
 
 # system imports
 from __future__ import division, print_function, absolute_import
+import os
 import os.path as osp
+import sys
+import re
 import pkg_resources as pkgr
+import importlib
 import visa
 from qtpy import QtCore, QtWidgets, uic
 from matplotlib.figure import Figure
@@ -53,6 +57,10 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
         self.statusBar.addPermanentWidget(self.led)
         self.led.setChecked(False)
 
+        # load measurements ui
+        self.measurements = self.importMeasurements()
+        self.loadMeasurements()
+
         # prepare GUI
         self.connect_ui_callbacks()  # connect to callbacks
         self._on_load_default()  # load default settings into GUI
@@ -79,6 +87,27 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
 
     def closeEvent(self, event):
         self.exit_()
+
+    def importMeasurements(self):
+            pysearchre = re.compile('.py$', re.IGNORECASE)
+            pluginfiles = filter(pysearchre.search,
+                                 os.listdir(osp.join(osp.dirname(__file__),
+                                                 'measurements')))
+            form_module = lambda fp: '.' + osp.splitext(fp)[0]
+            plugins = map(form_module, pluginfiles)
+            # import parent module / namespace
+            importlib.import_module('keithleygui.measurements')
+            modules = []
+            for plugin in plugins:
+                if not plugin.startswith('__'):
+                    modules.append(importlib.import_module(plugin, package="keithleygui.measurements"))
+
+            return modules
+
+    def loadMeasurements(self):
+        for measurement in self.measurements:
+            self.tabWidgetSweeps.addTab(measurement.Measurement(self), measurement.name)
+
 
 # =============================================================================
 # GUI setup
@@ -202,10 +231,11 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
             self.gridLayouts[i].addWidget(self.scienDSpinBoxsLimV[i], 2, 1, 1, 1)
 
     def connect_ui_callbacks(self):
-        """Connect buttons and menus to callbacks."""
-        self.pushButtonTransfer.clicked.connect(self._on_sweep_clicked)
-        self.pushButtonOutput.clicked.connect(self._on_sweep_clicked)
-        self.pushButtonIV.clicked.connect(self._on_sweep_clicked)
+        """Connect buttons and menues to callbacks."""
+        #self.pushButtonTransfer.clicked.connect(self._on_sweep_clicked)
+        #self.pushButtonOutput.clicked.connect(self._on_sweep_clicked)
+        #self.pushButtonIV.clicked.connect(self._on_sweep_clicked)
+        self.pushButtonRun.clicked.connect(self._on_sweep_clicked)
         self.pushButtonAbort.clicked.connect(self._on_abort_clicked)
 
         self.comboBoxGateSMU.currentIndexChanged.connect(self._on_smu_gate_changed)
@@ -259,41 +289,10 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
 
         self.apply_smu_settings()
 
-        if self.sender() == self.pushButtonTransfer:
-            self.statusBar.showMessage('    Recording transfer curve.')
-            # get sweep settings
-            params = {'sweep_type': 'transfer'}
-            params['VgStart'] = self.scienDSpinBoxVgStart.value()
-            params['VgStop'] = self.scienDSpinBoxVgStop.value()
-            params['VgStep'] = self.scienDSpinBoxVgStep.value()
-            vd_list_string = self.lineEditVdList.text()
-            vd_string_list = vd_list_string.split(',')
-            params['VdList'] = [self._string_to_vd(x) for x in vd_string_list]
-
-        elif self.sender() == self.pushButtonOutput:
-            self.statusBar.showMessage('    Recording output curve.')
-            # get sweep settings
-            params = {'sweep_type': 'output'}
-            params['VdStart'] = self.scienDSpinBoxVdStart.value()
-            params['VdStop'] = self.scienDSpinBoxVdStop.value()
-            params['VdStep'] = self.scienDSpinBoxVdStep.value()
-            vg_list_string = self.lineEditVgList.text()
-            vg_string_list = vg_list_string.split(',')
-            params['VgList'] = [float(x) for x in vg_string_list]
-
-        elif self.sender() == self.pushButtonIV:
-            self.statusBar.showMessage('    Recording IV curve.')
-            # get sweep settings
-            params = {'sweep_type': 'iv'}
-            params['VStart'] = self.scienDSpinBoxVStart.value()
-            params['VStop'] = self.scienDSpinBoxVStop.value()
-            params['VStep'] = self.scienDSpinBoxVStep.value()
-
-            smusweep = self.comboBoxSweepSMU.currentText()
-            params['smu_sweep'] = getattr(self.keithley, smusweep)
-
-        else:
-            return
+        # receive the measurement-specific parameters
+        tab = self.tabWidgetSweeps.currentIndex()
+        tabWidget = self.tabWidgetSweeps.widget(tab)
+        params = tabWidget._on_sweep_clicked()
 
         # get acquisition settings
         params['tInt'] = self.scienDSpinBoxInt.value()  # integration time
@@ -317,7 +316,7 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
             return
 
         # create measurement thread with params dictionary
-        self.measureThread = MeasureThread(self.keithley, params)
+        self.measureThread = MeasureThread(self.keithley, params, tabWidget.mfunction)
         self.measureThread.finishedSig.connect(self._on_measure_done)
 
         # run measurement
@@ -462,32 +461,9 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
         # Set SMU selection comboBox status
         cmb_list = list(self.smu_list)  # get list of all SMUs
 
-        # transfer curve settings
-        self.scienDSpinBoxVgStart.setValue(CONF.get('Sweep', 'VgStart'))
-        self.scienDSpinBoxVgStop.setValue(CONF.get('Sweep', 'VgStop'))
-        self.scienDSpinBoxVgStep.setValue(CONF.get('Sweep', 'VgStep'))
-        txt = str(CONF.get('Sweep', 'VdList')).strip('[]')
-        self.lineEditVdList.setText(txt)
-
-        # output curve settings
-        self.scienDSpinBoxVdStart.setValue(CONF.get('Sweep', 'VdStart'))
-        self.scienDSpinBoxVdStop.setValue(CONF.get('Sweep', 'VdStop'))
-        self.scienDSpinBoxVdStep.setValue(CONF.get('Sweep', 'VdStep'))
-        txt = str(CONF.get('Sweep', 'VgList')).strip('[]')
-        self.lineEditVgList.setText(txt)
-
-        # iv curve settings
-        self.scienDSpinBoxVStart.setValue(CONF.get('Sweep', 'VStart'))
-        self.scienDSpinBoxVStop.setValue(CONF.get('Sweep', 'VStop'))
-        self.scienDSpinBoxVStep.setValue(CONF.get('Sweep', 'VStep'))
-        try:
-            idx_sweep = cmb_list.index(CONF.get('Sweep', 'smu_sweep'))
-        except ValueError:
-            idx_sweep = 0
-            msg = 'Could not find last used SMUs in Keithley driver.'
-            QtWidgets.QMessageBox.information(self, str('error'), msg)
-
-        self.comboBoxGateSMU.setCurrentIndex(idx_sweep)
+        # receive the measurement-specific values
+        for i in range(0, self.tabWidgetSweeps.count()):
+            self.tabWidgetSweeps.widget(i)._on_load_default()
 
         # other
         self.scienDSpinBoxInt.setValue(CONF.get('Sweep', 'tInt'))
@@ -503,10 +479,8 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
 
         self.comboBoxGateSMU.clear()
         self.comboBoxDrainSMU.clear()
-        self.comboBoxSweepSMU.clear()
         self.comboBoxGateSMU.addItems(cmb_list)
         self.comboBoxDrainSMU.addItems(cmb_list)
-        self.comboBoxSweepSMU.addItems(self.smu_list)
 
         try:
             idx_gate = cmb_list.index(CONF.get('Sweep', 'gate'))
@@ -559,9 +533,8 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
     def _gui_state_busy(self):
         """Set GUI to state for running measurement."""
 
-        self.pushButtonTransfer.setEnabled(False)
-        self.pushButtonOutput.setEnabled(False)
-        self.pushButtonIV.setEnabled(False)
+
+        self.pushButtonRun.setEnabled(False)
         self.pushButtonAbort.setEnabled(True)
 
         self.actionConnect.setEnabled(False)
@@ -573,9 +546,8 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
     def _gui_state_idle(self):
         """Set GUI to state for IDLE Keithley."""
 
-        self.pushButtonTransfer.setEnabled(True)
-        self.pushButtonOutput.setEnabled(True)
-        self.pushButtonIV.setEnabled(True)
+
+        self.pushButtonRun.setEnabled(True)
         self.pushButtonAbort.setEnabled(False)
 
         self.actionConnect.setEnabled(False)
@@ -586,9 +558,7 @@ class KeithleyGuiApp(QtWidgets.QMainWindow):
     def _gui_state_disconnected(self):
         """Set GUI to state for disconnected Keithley."""
 
-        self.pushButtonTransfer.setEnabled(False)
-        self.pushButtonOutput.setEnabled(False)
-        self.pushButtonIV.setEnabled(False)
+        self.pushButtonRun.setEnabled(False)
         self.pushButtonAbort.setEnabled(False)
 
         self.actionConnect.setEnabled(True)
@@ -633,45 +603,19 @@ class MeasureThread(QtCore.QThread):
     startedSig = QtCore.Signal()
     finishedSig = QtCore.Signal(object)
 
-    def __init__(self, keithley, params):
+    def __init__(self, keithley, params, mfunction):
         QtCore.QThread.__init__(self)
         self.keithley = keithley
         self.params = params
+        self.mfunction = mfunction
 
     def __del__(self):
         self.wait()
 
     def run(self):
         self.startedSig.emit()
-
-        if self.params['sweep_type'] == 'transfer':
-            sweep_data = self.keithley.transferMeasurement(
-                    self.params['smu_gate'], self.params['smu_drain'], self.params['VgStart'],
-                    self.params['VgStop'], self.params['VgStep'], self.params['VdList'],
-                    self.params['tInt'], self.params['delay'], self.params['pulsed']
-                    )
-        elif self.params['sweep_type'] == 'output':
-            sweep_data = self.keithley.outputMeasurement(
-                    self.params['smu_gate'], self.params['smu_drain'], self.params['VdStart'],
-                    self.params['VdStop'], self.params['VdStep'], self.params['VgList'],
-                    self.params['tInt'], self.params['delay'], self.params['pulsed']
-                    )
-
-        elif self.params['sweep_type'] == 'iv':
-            step = np.sign(self.params['VStop'] - self.params['VStart']) * abs(self.params['VStep'])
-            sweeplist = np.arange(self.params['VStart'], self.params['VStop'] + step, step)
-            v_sweep, i_sweep = self.keithley.voltageSweepSingleSMU(
-                    self.params['smu_sweep'], sweeplist, self.params['tInt'], self.params['delay'],
-                    self.params['pulsed']
-                    )
-
-            self.keithley.reset()
-
-            sweep_data = IVSweepData(v_sweep, i_sweep)
-            sweep_data.params = {'sweep_type': 'iv', 't_int': self.params['tInt'],
-                                 'delay': self.params['delay'], 'pulsed': self.params['pulsed']}
-
-        self.finishedSig.emit(sweep_data)
+        sweepData = self.mfunction(self.keithley, self.params)
+        self.finishedSig.emit(sweepData)
 
 
 def run():
